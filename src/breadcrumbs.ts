@@ -9,6 +9,12 @@ export interface Breadcrumb {
 }
 
 let breadcrumbs: Breadcrumb[] = [];
+let onConsoleErrorCallback: ((err: Error) => void) | null = null;
+
+export function setConsoleErrorCallback(cb: (err: Error) => void): void {
+  onConsoleErrorCallback = cb;
+}
+
 let installed = false;
 
 // Store originals for restoration
@@ -59,7 +65,29 @@ function instrumentConsole(): void {
   console.debug = wrap('debug', originalConsoleDebug);
   console.log = wrap('info', originalConsoleLog);
   console.warn = wrap('warning', originalConsoleWarn);
-  // Don't wrap console.error — those become actual errors, not breadcrumbs
+
+  // Wrap console.error — capture as actual errors + breadcrumb
+  console.error = (...args: unknown[]) => {
+    const message = args.map(String).join(' ');
+
+    addBreadcrumb({
+      type: 'log',
+      level: 'error',
+      message,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Lazily import to avoid circular dependency
+    const err = args[0] instanceof Error ? args[0] : new Error(message);
+    err.name = err.name === 'Error' ? 'ConsoleError' : err.name;
+
+    // Fire and forget — will be picked up by onConsoleError callback if set
+    if (onConsoleErrorCallback) {
+      onConsoleErrorCallback(err);
+    }
+
+    originalConsoleError.apply(console, args);
+  };
 }
 
 function instrumentClicks(): void {
