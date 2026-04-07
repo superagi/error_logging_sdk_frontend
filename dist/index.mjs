@@ -441,48 +441,9 @@ function getDeviceContextAttributes() {
 
 // src/web_vitals.ts
 var installed2 = false;
-var observer = null;
 var vitals = {};
 function getWebVitals() {
   return { ...vitals };
-}
-function emitVitalLog(name, value, rating) {
-  const config = getConfig();
-  if (!config.enabled) return;
-  const now = String(Date.now() * 1e6);
-  const attributes = [
-    { key: "web_vital.name", value: { stringValue: name } },
-    { key: "web_vital.value", value: { stringValue: String(Math.round(value * 100) / 100) } },
-    { key: "web_vital.rating", value: { stringValue: rating } },
-    { key: "log.source", value: { stringValue: "browser.web_vitals" } }
-  ];
-  if (typeof window !== "undefined") {
-    attributes.push({ key: "browser.url", value: { stringValue: window.location.href } });
-  }
-  const logRecord = {
-    timeUnixNano: now,
-    observedTimeUnixNano: now,
-    severityNumber: rating === "good" ? 9 : rating === "needs-improvement" ? 13 : 17,
-    // INFO / WARN / ERROR
-    severityText: rating === "good" ? "INFO" : rating === "needs-improvement" ? "WARN" : "ERROR",
-    body: { stringValue: `Web Vital: ${name} = ${Math.round(value * 100) / 100} (${rating})` },
-    attributes
-  };
-  enqueue(logRecord);
-}
-function rateVital(name, value) {
-  const thresholds = {
-    LCP: [2500, 4e3],
-    FCP: [1800, 3e3],
-    CLS: [0.1, 0.25],
-    INP: [200, 500],
-    TTFB: [800, 1800],
-    FID: [100, 300]
-  };
-  const [good, poor] = thresholds[name] || [Infinity, Infinity];
-  if (value <= good) return "good";
-  if (value <= poor) return "needs-improvement";
-  return "poor";
 }
 function installWebVitals() {
   if (installed2) return;
@@ -494,8 +455,6 @@ function installWebVitals() {
       const last = entries[entries.length - 1];
       if (last) {
         vitals.LCP = last.startTime;
-        const rating = rateVital("LCP", last.startTime);
-        emitVitalLog("LCP", last.startTime, rating);
       }
     });
     lcpObserver.observe({ type: "largest-contentful-paint", buffered: true });
@@ -506,8 +465,6 @@ function installWebVitals() {
       for (const entry of list.getEntries()) {
         if (entry.name === "first-contentful-paint") {
           vitals.FCP = entry.startTime;
-          const rating = rateVital("FCP", entry.startTime);
-          emitVitalLog("FCP", entry.startTime, rating);
         }
       }
     });
@@ -516,27 +473,19 @@ function installWebVitals() {
   }
   try {
     let clsValue = 0;
-    const clsObserver = new PerformanceObserver((list) => {
+    new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (!entry.hadRecentInput) {
           clsValue += entry.value;
           vitals.CLS = clsValue;
         }
       }
-    });
-    clsObserver.observe({ type: "layout-shift", buffered: true });
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden" && vitals.CLS != null) {
-          emitVitalLog("CLS", vitals.CLS, rateVital("CLS", vitals.CLS));
-        }
-      });
-    }
+    }).observe({ type: "layout-shift", buffered: true });
   } catch {
   }
   try {
     let maxINP = 0;
-    const inpObserver = new PerformanceObserver((list) => {
+    new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         const duration = entry.duration;
         if (duration > maxINP) {
@@ -544,23 +493,13 @@ function installWebVitals() {
           vitals.INP = duration;
         }
       }
-    });
-    inpObserver.observe({ type: "event", buffered: true });
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden" && vitals.INP != null) {
-          emitVitalLog("INP", vitals.INP, rateVital("INP", vitals.INP));
-        }
-      });
-    }
+    }).observe({ type: "event", buffered: true });
   } catch {
   }
   try {
     const navEntries = performance.getEntriesByType("navigation");
     if (navEntries.length > 0) {
-      const ttfb = navEntries[0].responseStart;
-      vitals.TTFB = ttfb;
-      emitVitalLog("TTFB", ttfb, rateVital("TTFB", ttfb));
+      vitals.TTFB = navEntries[0].responseStart;
     }
   } catch {
   }
@@ -568,10 +507,6 @@ function installWebVitals() {
 function uninstallWebVitals() {
   if (!installed2) return;
   installed2 = false;
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
 }
 
 // src/error_capture.ts
