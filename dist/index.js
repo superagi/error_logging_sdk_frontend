@@ -51,10 +51,6 @@ function getConfig() {
 
 // src/breadcrumbs.ts
 var breadcrumbs = [];
-var onConsoleErrorCallback = null;
-function setConsoleErrorCallback(cb) {
-  onConsoleErrorCallback = cb;
-}
 var installed = false;
 var originalConsoleError;
 var originalConsoleWarn;
@@ -97,21 +93,7 @@ function instrumentConsole() {
   console.debug = wrap("debug", originalConsoleDebug);
   console.log = wrap("info", originalConsoleLog);
   console.warn = wrap("warning", originalConsoleWarn);
-  console.error = (...args) => {
-    const message = args.map(String).join(" ");
-    addBreadcrumb({
-      type: "log",
-      level: "error",
-      message,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    const err = args[0] instanceof Error ? args[0] : new Error(message);
-    err.name = err.name === "Error" ? "ConsoleError" : err.name;
-    if (onConsoleErrorCallback) {
-      onConsoleErrorCallback(err);
-    }
-    originalConsoleError.apply(console, args);
-  };
+  console.error = wrap("error", originalConsoleError);
 }
 function instrumentClicks() {
   if (typeof document === "undefined") return;
@@ -743,7 +725,6 @@ function init(options) {
   if (!config.enabled) return;
   initSession();
   installBreadcrumbs();
-  setConsoleErrorCallback((err) => captureException(err, { tags: { mechanism: "console.error" } }));
   installGlobalHandlers();
   installResourceErrorCapture();
   installWebVitals();

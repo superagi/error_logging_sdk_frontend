@@ -1,6 +1,6 @@
 import { configure, getConfig } from './configuration';
 import type { OtelErrorLoggerConfig, OtlpLogRecord, OtlpAttribute } from './configuration';
-import { installBreadcrumbs, uninstallBreadcrumbs, addBreadcrumb, setConsoleErrorCallback } from './breadcrumbs';
+import { installBreadcrumbs, uninstallBreadcrumbs, addBreadcrumb } from './breadcrumbs';
 import type { Breadcrumb } from './breadcrumbs';
 import { captureException, installGlobalHandlers, uninstallGlobalHandlers } from './error_capture';
 import { startFlushTimer, stopFlushTimer, flush } from './transport';
@@ -33,7 +33,6 @@ function init(options: Partial<OtelErrorLoggerConfig> & { serviceName: string })
 
   initSession();
   installBreadcrumbs();
-  setConsoleErrorCallback((err) => captureException(err, { tags: { mechanism: 'console.error' } }));
   installGlobalHandlers();
   installResourceErrorCapture();
   installWebVitals();
